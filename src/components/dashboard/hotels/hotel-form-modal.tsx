@@ -8,9 +8,20 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+
 
 import {
-
     FormControl,
     FormField,
     FormItem,
@@ -40,25 +51,26 @@ type HotelForm = z.infer<typeof hotelSchema>;
 interface HotelFormModalProps {
     hotel: Hotel;
     onClose: () => void;
+    onHotelChanged: () => void; // Nueva prop para actualizar la lista.
 }
 
 
-export function HotelFormModal({ hotel, onClose }: HotelFormModalProps) {
+export function HotelFormModal({ hotel, onClose, onHotelChanged }: HotelFormModalProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false)
 
     const form = useForm<HotelForm>({
-       resolver: zodResolver(hotelSchema),
+        resolver: zodResolver(hotelSchema),
         defaultValues: {
             name: hotel?.name || "",
             email: hotel?.email || "",
             phone: hotel?.phone || "",
-           address: hotel?.address || "",
+            address: hotel?.address || "",
         },
     });
 
     const onSubmit = async (data: HotelForm) => {
         setIsSubmitting(true);
-        console.log("Datos a enviar:", data);
         try {
             const { error } = await supabase
                 .from("hotels")
@@ -69,25 +81,53 @@ export function HotelFormModal({ hotel, onClose }: HotelFormModalProps) {
                     address: data.address,
                 })
                 .eq("id", hotel.id)
-
+                .select('*')
             if (error) {
                 console.error("Supabase error:", error);
                 throw error;
-             }
+            }
            toast.success("Hotel updated successfully");
             onClose();
-            form.reset();
+            onHotelChanged();
+
         } catch (error) {
             toast.error("Error updating hotel");
             console.error("Error:", error);
-           if (error instanceof Error) {
+            if (error instanceof Error) {
                 console.error("Error especifico:", error.message);
-           }
+            }
         } finally {
-           setIsSubmitting(false);
+          setIsSubmitting(false);
         }
     };
-    
+
+       const handleDelete = async () => {
+        setIsDeleting(true);
+        try {
+            const { error } = await supabase
+                .from('hotels')
+                .delete()
+                .eq('id', hotel.id)
+
+            if (error) {
+              console.error('Error deleting hotel:', error);
+                 throw error;
+            }
+              toast.success("Hotel deleted successfully");
+             onClose();
+             onHotelChanged();
+
+        } catch (error) {
+             toast.error("Error deleting hotel");
+            console.error("Error:", error);
+            if (error instanceof Error) {
+                console.error("Error específico:", error.message);
+            }
+        } finally {
+           setIsDeleting(false);
+        }
+    };
+
     return (
        <FormProvider {...form}>
        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -144,19 +184,36 @@ export function HotelFormModal({ hotel, onClose }: HotelFormModalProps) {
                   )}
              />
          <div className="flex justify-end gap-2">
-             <Button
-                type="button"
-               variant="outline"
-               onClick={onClose}
-               >
-                  Cancel
-               </Button>
+           
                <Button
                  type="submit"
                   disabled={isSubmitting}
                 >
                  {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
+             <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button type="button" variant='destructive' disabled={isDeleting}>
+                        {isDeleting ? 'Deleting...' : 'Delete'}
+                    </Button>
+                </AlertDialogTrigger>
+               <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                        Delete {hotel.name} permanently?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        All data associated with this hotel will be deleted permanently.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                     <AlertDialogAction onClick={handleDelete}>
+                            Continue
+                     </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             </div>
          </form>
      </FormProvider>

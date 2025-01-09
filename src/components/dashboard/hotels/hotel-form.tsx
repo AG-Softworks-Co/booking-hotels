@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -22,6 +22,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { User } from '@supabase/supabase-js';
 
 const hotelSchema = z.object({
   name: z.string().min(1, "Hotel name is required"),
@@ -35,10 +36,31 @@ type HotelForm = z.infer<typeof hotelSchema>;
 interface HotelFormProps {
   open: boolean;
   onClose: () => void;
+  onHotelAdded: () => void; // Agrega la nueva función para actualizar la lista
 }
 
-export function HotelForm({ open, onClose }: HotelFormProps) {
+export function HotelForm({ open, onClose, onHotelAdded }: HotelFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    // Get current user
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+
+    getCurrentUser();
+
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const form = useForm<HotelForm>({
     resolver: zodResolver(hotelSchema),
@@ -52,32 +74,38 @@ export function HotelForm({ open, onClose }: HotelFormProps) {
 
   const onSubmit = async (data: HotelForm) => {
     setIsSubmitting(true);
-      console.log("Datos a enviar:", data);
     try {
-      const { error, } = await supabase
-        .from("hotels")
-        .insert({
-             name: data.name,
-             email: data.email,
-             phone: data.phone,
-             address: data.address,
-          })
-          .select("id");
-
-      if (error) {
-          console.error("Supabase error:", error);
-          throw error;
+      if (!user?.id) {
+        toast.error("Debes iniciar sesión para crear un hotel.");
+        return;
       }
 
-      toast.success("Hotel added successfully");
-      onClose();
+      const { error } = await supabase
+        .from("hotels")
+        .insert({
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          address: data.address,
+          owner_id: user.id,
+        })
+        .select("id");
+
+      if (error) {
+        console.error("Error de Supabase:", error);
+        throw error;
+      }
+
+      toast.success("Hotel agregado exitosamente");
+        onClose();
+         onHotelAdded()
       form.reset();
     } catch (error) {
-      toast.error("Error adding hotel");
-       console.error("Error:", error);
-       if(error instanceof Error) {
-            console.error("Error especifico:", error.message);
-          }
+      toast.error("Error al agregar el hotel");
+      console.error("Error:", error);
+      if (error instanceof Error) {
+        console.error("Error específico:", error.message);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -87,7 +115,7 @@ export function HotelForm({ open, onClose }: HotelFormProps) {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add New Hotel</DialogTitle>
+          <DialogTitle>Agregar Nuevo Hotel</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -97,9 +125,9 @@ export function HotelForm({ open, onClose }: HotelFormProps) {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Hotel Name</FormLabel>
+                  <FormLabel>Nombre del Hotel</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Hotel Name" />
+                    <Input {...field} placeholder="Nombre del Hotel" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -119,27 +147,29 @@ export function HotelForm({ open, onClose }: HotelFormProps) {
                 </FormItem>
               )}
             />
+
             <FormField
               control={form.control}
               name="phone"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Phone</FormLabel>
+                  <FormLabel>Teléfono</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Phone" />
+                    <Input {...field} placeholder="Teléfono" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
             <FormField
               control={form.control}
               name="address"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Address</FormLabel>
+                  <FormLabel>Dirección</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Address" />
+                    <Input {...field} placeholder="Dirección" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -147,18 +177,11 @@ export function HotelForm({ open, onClose }: HotelFormProps) {
             />
 
             <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-              >
-                Cancel
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancelar
               </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Adding..." : "Add Hotel"}
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Agregando..." : "Agregar Hotel"}
               </Button>
             </div>
           </form>

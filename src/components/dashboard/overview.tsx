@@ -1,14 +1,13 @@
 "use client";
 
-
 import { Card } from '@/components/ui/card';
 import {
   BedDouble,
   CalendarCheck,
   DollarSign,
   Users,
+  Building,
 } from 'lucide-react';
-
 import { useHotelStats } from '@/hooks/use-hotel-stats';
 
 export function Overview() {
@@ -19,6 +18,18 @@ export function Overview() {
       <h1 className="text-3xl font-bold">Dashboard Overview</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-primary/10 rounded-lg">
+              <Building className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Total Hotels</p>
+              <p className="text-2xl font-bold">{isLoading ? '...' : stats.totalHotels}</p>
+            </div>
+          </div>
+        </Card>
+
         <Card className="p-6">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-primary/10 rounded-lg">
@@ -69,8 +80,6 @@ export function Overview() {
           </div>
         </Card>
       </div>
-
-      {/* Add more dashboard widgets here */}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { HotelModal } from './hotel-modal';
-
+import { Loading } from '@/components/loading';
 
 interface Hotel {
     id: string;
@@ -16,26 +16,64 @@ interface Hotel {
     updated_at: string;
 }
 
-export function HotelList() {
+interface HotelListProps {
+    hotelAdded: boolean;
+}
+
+
+export function HotelList({hotelAdded} : HotelListProps) {
     const [hotels, setHotels] = useState<Hotel[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [hotelChanged, setHotelChanged] = useState(false)
+     const [title, setTitle] = useState<string>("Lista de hoteles");
 
 
-    useEffect(() => {
-        async function fetchHotels() {
-            const { data, error } = await supabase
+    const fetchHotels = async () => {
+         const { data, error } = await supabase
                 .from('hotels')
                 .select('*');
-
-            if (error) {
-                console.error('Error fetching hotels:', error);
-                return;
+            if(error) {
+                console.error('Error fetching initial hotels', error)
+            }else {
+                setHotels(data as Hotel[] || []);
+                setLoading(false);
+                if(data?.length === 0){
+                    setTitle("No hotels found")
+                }else if(data?.length === 1){
+                    setTitle("Hotel")
+                } else {
+                  setTitle("Lista de hoteles")
+                }
             }
-            setHotels(data as Hotel[] || []);
-        }
-        fetchHotels();
-    }, []);
+    }
+      const handleHotelChanged = () => {
+        setHotelChanged(!hotelChanged)
+    }
+    useEffect(() => {
+        // Create a Supabase channel
+        const hotelsChannel = supabase.channel('realtime hotels')
+
+
+         fetchHotels() // Fetch initial hotels
+
+          // Listen to changes on hotels table
+        hotelsChannel
+          .on('postgres_changes',
+            { event: '*', schema: 'public', table: 'hotels' },
+            (payload) => {
+               console.log('Change received!', payload)
+                fetchHotels()
+             })
+            .subscribe()
+
+
+      return () => {
+        supabase.removeChannel(hotelsChannel) // unsubscribe channel on unmount
+      }
+    }, [hotelAdded, hotelChanged]);
+
 
     const handleOpenModal = (hotel: Hotel) => {
         setSelectedHotel(hotel);
@@ -45,12 +83,17 @@ export function HotelList() {
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setSelectedHotel(null);
+         setHotelChanged(!hotelChanged)
+
     };
 
     return (
-        <div>
-            {hotels.length === 0 ? (
-                <p>No hotels found.</p>
+      <div>
+          <h2 className='text-2xl font-bold mb-4'>{title}</h2>
+            {loading ? (
+               <Loading />
+           ) : hotels.length === 0 ? (
+               <></>
             ) : (
                 <div className="space-y-2">
                     {hotels.map((hotel) => (
@@ -66,6 +109,7 @@ export function HotelList() {
                     open={isModalOpen}
                     onClose={handleCloseModal}
                     hotel={selectedHotel}
+                     onHotelChanged={handleHotelChanged}
                 />
             )}
         </div>

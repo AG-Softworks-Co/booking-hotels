@@ -6,6 +6,7 @@ import { ReservationList } from './reservation-list';
 import { ReservationForm } from './reservation-form';
 import { Plus } from 'lucide-react';
 import { HotelSelection } from './hotel-selection';
+import { RoomOccupancyCalendar } from './room-occupancy-calendar';
 
 export function ReservationManagement() {
     const [isAddingReservation, setIsAddingReservation] = useState(false);
@@ -32,7 +33,10 @@ export function ReservationManagement() {
             <HotelSelection onHotelSelect={handleHotelSelect} />
 
             {selectedHotelId && (
-                 <ReservationList hotelId={selectedHotelId} />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <ReservationList hotelId={selectedHotelId} />
+                  <RoomOccupancyCalendar hotelId={selectedHotelId} />
+                </div>
             )}
 
             {selectedHotelId && (

@@ -38,7 +38,6 @@ import { format } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
 import { Calendar } from "../../ui/calendar";
 
-
 const reservationSchema = z.object({
     roomId: z.string().min(1, 'Room selection is required'),
     guestName: z.string().min(1, 'Guest name is required'),
@@ -62,6 +61,7 @@ interface ReservationFormProps {
     hotelId: string;
 }
 
+
 export function ReservationForm({ open, onClose, hotelId }: ReservationFormProps) {
     const [rooms, setRooms] = useState<Room[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -77,7 +77,6 @@ export function ReservationForm({ open, onClose, hotelId }: ReservationFormProps
             checkOut: new Date(),
         },
     });
-
 
     useEffect(() => {
         async function fetchRooms() {
@@ -100,41 +99,36 @@ export function ReservationForm({ open, onClose, hotelId }: ReservationFormProps
     }, [hotelId]);
 
 
-    useEffect(() => {
+
+     useEffect(() => {
         const calculatePrice = () => {
-           const selectedRoomId = form.getValues('roomId');
+            const selectedRoomId = form.getValues('roomId');
             const selectedRoom = rooms.find(room => room.id === selectedRoomId);
             const checkInDate = form.getValues('checkIn');
             const checkOutDate = form.getValues('checkOut');
 
-             console.log("selectedRoom:", selectedRoom);
-             console.log("checkInDate:", checkInDate);
-             console.log("checkOutDate:", checkOutDate);
 
              if (selectedRoom && checkInDate && checkOutDate) {
             const nights = Math.ceil(
                     (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)
                 );
                 const calculatedPrice = selectedRoom.price * nights;
-               console.log("calculatedPrice:", calculatedPrice);
-               setTotalPrice(calculatedPrice);
-           } else {
-             setTotalPrice(null);
+                setTotalPrice(calculatedPrice);
+            } else {
+                setTotalPrice(null);
             }
         };
-      calculatePrice();
-  }, [form.watch('roomId'), form.watch('checkIn'), form.watch('checkOut'), rooms]);
-
-
+        calculatePrice();
+    }, [form.getValues('roomId'), form.getValues('checkIn'), form.getValues('checkOut'), rooms]);
 
     const onSubmit = async (data: ReservationFormType) => {
         setIsSubmitting(true);
         try {
             const selectedRoom = rooms.find(room => room.id === data.roomId);
-           if (!selectedRoom) throw new Error('Room not found');
+            if (!selectedRoom) throw new Error('Room not found');
 
             if(totalPrice === null) throw new Error('Total price could not be calculated');
-            const { error } = await supabase.from('bookings').insert({
+            console.log("Data to insert in bookings:", {
                 hotel_id: hotelId,
                 room_id: data.roomId,
                 guest_name: data.guestName,
@@ -145,19 +139,31 @@ export function ReservationForm({ open, onClose, hotelId }: ReservationFormProps
                status: 'confirmed',
             });
 
-            if (error) {
-                if (typeof error === 'object' && error !== null && 'message' in error) {
-                    throw new Error(`Error creating reservation: ${error.message}`);
-                } else {
-                    throw new Error('Error creating reservation');
-                }
-            }
+            const { error } = await supabase.from('bookings').insert({
+               hotel_id: hotelId,
+                room_id: data.roomId,
+                guest_name: data.guestName,
+                guest_email: data.guestEmail,
+                check_in: data.checkIn.toISOString(),
+                check_out: data.checkOut.toISOString(),
+                total_price: totalPrice,
+               status: 'confirmed',
+            });
 
+            if (error) {
+                 throw new Error(`Error creating reservation: ${error?.message}`);
+            }
+         const { error: updateError } = await supabase
+                .from('rooms')
+                .update({ status: 'unavailable' })
+                .eq('id', data.roomId);
+                if (updateError) {
+                    throw new Error(`Error updating room status: ${updateError?.message}`);
+                }
             toast.success('Reservation created successfully');
             onClose();
             form.reset();
-           setTotalPrice(null);
-
+             setTotalPrice(null);
         } catch (error) {
             let errorMessage = 'An unexpected error occurred';
             if (error instanceof Error) {
@@ -170,6 +176,7 @@ export function ReservationForm({ open, onClose, hotelId }: ReservationFormProps
             setIsSubmitting(false);
         }
     };
+
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
@@ -264,7 +271,7 @@ export function ReservationForm({ open, onClose, hotelId }: ReservationFormProps
                                                     mode="single"
                                                     selected={field.value}
                                                     onSelect={field.onChange}
-                                                     initialFocus
+                                                    initialFocus
                                                 />
                                             </PopoverContent>
                                         </Popover>
